@@ -107,15 +107,6 @@ benchmarks/
 └── validate_real_model.py     # Phase A: real model tensor validation
 ```
 
-## Development Workflow
-
-Every change follows this loop (see [CLAUDE.md](CLAUDE.md) for full rules):
-
-```
-GitHub Issue → Tests FIRST → Codex review tests → Implement →
-Codex + Roast review → Fix → Verify tests → Commit → Close issue
-```
-
 ## Paper Reference
 
 - **TurboQuant**: arXiv 2504.19874 (ICLR 2026)
