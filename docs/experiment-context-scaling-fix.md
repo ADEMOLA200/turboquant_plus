@@ -35,7 +35,9 @@ Two `ggml_mul_mat(128x128, 128xN)` per attention layer for Q/V rotation. N scale
 
 **Expected speedup:** 16x less matmul compute. The 2% per-doubling gap should shrink to ~0.1%.
 
-**Status:** IN PROGRESS
+**Result:** FAILED. PPL = 7.06 (target 6.19). Real KV tensors from Qwen3.5 need 128-element groups for proper Gaussianization. Python random data showed good kurtosis at d=32 but real model data is different. Speed was also worse. Dead end.
+
+**Status:** FAILED
 
 ### Approach 3: Custom GGML_OP_TURBO_WHT
 **Codex analysis:** 10+ files to modify. `ggml_map_custom1` exists for CPU prototyping but no Metal support. Full custom op is the "right" solution but high effort.
