@@ -219,7 +219,7 @@ Sparse V dequantization is not specific to TurboQuant. It applies to any quantiz
 2. V is stored in a quantized format requiring dequantization
 3. The dequant cost is non-trivial relative to the multiply-accumulate
 
-This includes NVFP4, KIVI, CacheQuant, and other KV cache quantization methods. The 3-line implementation is kernel-level and requires no model changes, no retraining, and no calibration data.
+This includes NVFP4, KIVI, CacheQuant, and other KV cache quantization methods — because it operates on the attention distribution rather than the dequantization mechanism itself. The 3-line implementation is kernel-level and requires no model changes, no retraining, and no calibration data.
 
 ### 7.1 Empirical Validation on q8\_0
 
@@ -242,10 +242,6 @@ Sparse V provides a **5% decode speedup on q8\_0** — a cache format with far c
 PPL identical. NIAH identical — same two failures at 100% depth for 8K and 16K in both conditions. Sparse V has zero quality or retrieval impact on q8\_0, confirming it is purely a compute optimization.
 
 This confirms that sparse V is a general flash attention optimization, not a TurboQuant-specific trick. Any quantized cache format — including NVFP4, q4\_0, and future formats — should benefit. Raw benchmark logs: [`threshold-ablation-logs/q8_0_sparse_v_ablation_m5.txt`](../threshold-ablation-logs/q8_0_sparse_v_ablation_m5.txt), [`threshold-ablation-logs/q8_0_sparse_v_quality_m5.txt`](../threshold-ablation-logs/q8_0_sparse_v_quality_m5.txt).
-
----
-
-## 8. Limitations and Future Work
 
 ### 7.2 Combined 4-mag LUT + Sparse V on M2 Pro
 
@@ -293,6 +289,8 @@ We present a 3-line modification to flash attention kernels that yields up to 22
 The core insight is simple: making N dequant operations faster is bounded by hardware floors; eliminating $(1-p) \times N$ of them entirely, rather than optimizing $N$ under hardware constraints, is not. After 14 failed attempts to optimize the dequant instruction itself, sparse V succeeds by changing the question from "how do we dequantize faster?" to "should we dequantize at all?"
 
 The technique exploits the natural sparsity of attention weights — a property that becomes more pronounced exactly when the dequant bottleneck is most severe. The approach is general to any quantized KV cache scheme, requires no model changes, no retraining, and no calibration data, and is orthogonal to existing dequant and compression optimizations. It is, we believe, the first instance of a broader class of attention-aware kernel optimizations that use the attention distribution to gate downstream computation.
+
+This suggests that a significant fraction of attention computation in long-context inference is redundant and can be gated without loss of quality.
 
 ---
 
