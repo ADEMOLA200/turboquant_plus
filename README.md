@@ -4,9 +4,11 @@ Implementation of [TurboQuant](https://research.google/blog/turboquant-redefinin
 
 > **Why "Plus"?** The base TurboQuant paper is v1. I have ideas for improvements coming post-v1 — adaptive bit allocation, temporal decay compression, expert-aware MoE compression, and more. The "plus" is what comes next.
 
-Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotation. **Zero speed penalty** vs q8_0 on Apple Silicon.
+Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotation. Near q8_0 prefill speed and 0.90-0.93x decode throughput at long context on Apple Silicon.
 
-**Working end-to-end on Apple Silicon** — Qwen 3.5 35B-A3B MoE with 3-bit TurboQuant KV cache on M5 Max via llama.cpp Metal. **Faster than q8_0 at 4.6x compression.**
+**Key contribution:** Attention-gated KV cache decoding ("Sparse V") that skips low-weight V positions during inference. Up to +22.8% decode speed at 32K context with no measurable PPL change. This shifts KV cache optimization from representation-level compression to attention-aware computation, using the model's own sparsity to eliminate unnecessary work.
+
+**Working end-to-end** — Qwen 3.5 35B-A3B MoE with 3-bit TurboQuant KV cache on M5 Max via llama.cpp Metal.
 
 ## Status: v1 Complete, Speed Optimized, Community-Tested
 
@@ -18,7 +20,7 @@ Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotat
 - **4-mag LUT**: auto-detected on M1/M2/M3/M4, +38-45% decode at long context
 - **Layer-adaptive mode 2**: q8_0 quality at 3.5x compression (last 8 layers at q8_0)
 - **Temporal decay**: 30-34% memory savings at long context (experiment branch)
-- **NIAH retrieval**: 9/9 (100%) single needle with sparse V, beating q8_0 (7/9). 100% multi-key through 32K
+- **NIAH retrieval**: 9/9 single needle with sparse V (vs 7/9 baseline), 100% multi-key through 32K
 - **14 decode approaches tested** on M2 Pro — comprehensive hardware analysis
 - Community: 10+ testers across M1/M2/M5 Mac, RTX 3090/4090/5090, AMD 6800 XT/9070
 - Rotation Gaussianization validated on real Qwen3 KV tensors (kurtosis 900 → 2.9)
@@ -36,7 +38,7 @@ Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotat
 | q4_0 | 4.0x | — | 6.142 | — |
 | **turbo3** | **4.6x** | **2747** | **5.445** | **1.02x** |
 
-**4.6x compression. q8_0 speed parity at all context depths. 1% quality loss.** The trifecta.
+4.6x compression. ~1% perplexity increase vs q8_0 due to compression; sparse V introduces no additional degradation.
 
 ### Context Scaling (Verified 2K-32K)
 
@@ -71,7 +73,7 @@ Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotat
 
 Dense models see smaller gains (attention is <5% of decode — FFN dominates). No regressions. Safe to enable by default.
 
-**Sparse V dequant** skips V dequantization for positions where softmax attention weight < 1e-6. At long context, 90%+ of attention weights are negligible — this saves ~half the total dequant cost. **+22.8% decode at 32K** vs previous turbo3, pushing the ratio from 0.76x to 0.93x. Zero quality loss (PPL 6.176 vs 6.211 without sparse V). Benefit scales with context length — the longer the context, the bigger the win. This is a 3-line kernel change.
+**Sparse V dequant** skips V dequantization for positions where softmax attention weight < 1e-6. At long context, most attention weights are negligible — this saves approximately half the total dequant cost. +22.8% decode at 32K vs turbo3 without sparse V, pushing the ratio from 0.76x to 0.93x of q8_0. Sparse V introduces no additional PPL degradation beyond the underlying compression (validated at 32K with 50 chunks on wikitext-103, CI ±0.021). Benefit scales with context length. This is a 3-line kernel change.
 
 Sparse V is not TurboQuant-specific: on q8_0 KV cache it yields a +5% decode speedup with identical PPL and NIAH, confirming this is a general attention-aware optimization rather than a compression-specific trick. See the [full paper](docs/papers/sparse-v-dequant.md).
 
@@ -110,7 +112,9 @@ Tested using [Kamradt](https://github.com/gkamradt/LLMTest_NeedleInAHaystack) an
 |------|------|--------|-------------------|
 | Single needle (9 positions) | 7/9 | 7/9 | **9/9 (100%)** |
 
-**turbo3 + sparse V achieves perfect retrieval, beating q8_0.** Needle positions always have meaningful attention weights (well above the 1e-6 threshold) and are never skipped. The improvement likely stems from reduced numerical noise — accumulating fewer negligible V contributions produces a cleaner output signal.
+turbo3 + sparse V achieves 9/9 in this setup (vs 7/9 baseline), suggesting possible denoising effects from removing low-weight quantization noise. Needle positions have meaningful attention weights (well above the 1e-6 threshold) and are never skipped.
+
+Sparse V shows no measurable impact on perplexity across all tested contexts and datasets. Observed improvements in retrieval tasks (e.g., NIAH) are treated as secondary signals and may reflect reduced quantization noise rather than fundamental model quality changes.
 
 **Single Needle — Depth (0-100%) x Context Length (pre-sparse-V):**
 
@@ -129,6 +133,19 @@ Tested using [Kamradt](https://github.com/gkamradt/LLMTest_NeedleInAHaystack) an
 | turbo3 | 1/1 | 1/1 | 1/1 | 1/1 |
 
 **100% retrieval accuracy with distractors through 32K.** turbo3 correctly ignores distractor needles at all context depths.
+
+### Long-Context Perplexity (Primary Quality Metric)
+
+50-chunk wikitext-103 at 32K context (strongest validation, CI ±0.021):
+
+| Config | PPL | vs q8_0 | Sparse V Δ |
+|--------|-----|---------|------------|
+| q8_0 (8-bit KV) | 7.0638 | — | — |
+| q4_0 (4-bit KV) | 7.0857 | +0.31% | — |
+| turbo3 WITHOUT sparse V (3.5-bit) | 7.1796 | +1.64% | — |
+| turbo3 WITH sparse V (3.5-bit) | 7.1796 | +1.64% | **0.0000** |
+
+Note: q4_0 is included as a reference baseline. No optimization was applied to q4_0 in this work. Development focused on q8_0 and turbo3 paths.
 
 ### Key Validation
 
