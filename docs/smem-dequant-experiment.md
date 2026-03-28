@@ -58,18 +58,29 @@ For data that's only used once by its producer, this is pure overhead.
 
 The SMEM approach adds 64 threadgroup memory ops (32 stores + 32 loads) plus a barrier, for zero reduction in constant LUT reads.
 
-### ILP destruction
+### ILP destruction — THE ROOT CAUSE of the 2x slowdown
 
 The baseline interleaves dequant + dot product, enabling instruction-level parallelism:
 ```
 deq_k → dot(k, q) → deq_k → dot(k, q) → ...
-```
-The GPU overlaps constant reads with ALU operations. The SMEM approach forces sequential phases:
-```
-deq_k → deq_k → ... → BARRIER → dot(k,q) → dot(k,q) → ...
+         ^-- GPU overlaps this with next constant read
 ```
 
-This eliminates the ILP benefit that makes the 4-mag LUT work well.
+The SMEM approach forces sequential phases:
+```
+deq_k → deq_k → ... → BARRIER → dot(k,q) → dot(k,q) → ...
+^-- all constant reads       ^-- all ALU
+```
+
+**Quantitatively**: if constant read latency ≈ dot product ALU latency (call both X cycles):
+- Interleaved: 32 × max(X, X) = 32X per outer iteration
+- Separated: 32X + 32X = 64X per outer iteration (2x slower)
+
+This perfectly explains the 2x slowdown. The per-phase SMEM overhead (64 writes + barrier + 64 reads) is negligible (~300 extra cycles per iteration). The ILP loss is ~32X extra cycles per iteration, where X ≈ 5-10 cycles = 160-320 extra cycles per iteration per phase. Over 2 phases: 320-640 extra cycles × 256 iterations = 82K-164K extra cycles total.
+
+**Key insight**: The 4-mag LUT works BECAUSE constant reads interleave with ALU. The per-element `* norm` multiply provides ALU work that overlaps with the next constant read. Any approach that separates the memory and compute phases loses this overlap.
+
+This also explains why "deferred norm multiply" (approach #5, 12.9 tok/s) was slower — deferring norm to the end reduced ILP in the same way.
 
 ### Short context was neutral (not beneficial)
 
@@ -143,9 +154,10 @@ Precomputes `mag[c] * Q[j]` for c=0..3, j=0..3 (4 float4 named variables, NOT ar
 **Constant reads**: 4 total (vs 4 × C = 128 in baseline). O(1) vs O(C).
 **Branches**: 8 selects per float4 (2 per element × 4 elements). On Apple8, likely worse than 4 constant reads.
 
-**Prediction**: Likely -10-30% on M2 due to select→branch overhead. But trades constant cache pressure for ALU/branch pressure, which may help at very long context where the constant cache is fully thrashed.
+**Result**: 10.10 tok/s at 8K = **-33% vs 4-mag baseline** (15.1). Even worse than predicted.
+The 8 select() calls per float4 are catastrophically expensive on Apple8 — each likely compiles to conditional moves or branches. Total per float4: ~40-60 ALU/branch operations vs 4 constant reads in the baseline.
 
-TODO: Test after 7pm CST (DINOv2 training running 6-7pm).
+Note: QC precompute still has the ILP problem — the precomputation happens BEFORE the cc loop, so the constant reads (for mag values) don't overlap with the inner loop ALU.
 
 ## Approach Count
 

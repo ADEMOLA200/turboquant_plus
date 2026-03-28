@@ -242,7 +242,7 @@ Pre-dequantize entire K/V tiles (C=32 × DK=128 = 8KB half) into threadgroup mem
 
 **Lesson**: SMEM only helps when data is shared between threads. Don't separate what the hardware pipelines together.
 
-### Updated tally: 15 approaches tested
+### Updated tally: 16 approaches tested
 
 | Rank | Approach | M2 8K | vs Ceiling | Category |
 |------|----------|-------|-----------|----------|
@@ -258,9 +258,18 @@ Pre-dequantize entire K/V tiles (C=32 × DK=128 = 8KB half) into threadgroup mem
 | 10 | Main (8-LUT) | 10.95 | 45% | Baseline |
 | 11 | Named-reg ternary | 10.3 | 42% | Registers + branches |
 | 12 | Non-vec FA | 10.2 | 42% | Wrong kernel |
-| 13 | **SMEM pre-dequant** | **10.17** | **41%** | **Threadgroup cache** |
-| 14 | Fused block dot | 8.1 | 33% | 64 comparisons |
+| 13 | SMEM pre-dequant | 10.17 | 41% | Threadgroup cache (ILP loss) |
+| 14 | Q·centroid precompute | 10.10 | 41% | select() register LUT |
+| 15 | Fused block dot | 8.1 | 33% | 64 comparisons |
 | — | Ceiling (no dequant) | 24.5 | 100% | Zero overhead |
+
+### Critical ILP insight (2026-03-28)
+
+The 2x slowdown of SMEM pre-dequant revealed WHY the 4-mag LUT works: **interleaved constant reads and ALU provide instruction-level parallelism.** The GPU overlaps the next constant read while the current dot product + norm multiply executes. Any approach that separates memory reads from compute phases loses this overlap and runs at 2x the latency.
+
+This explains the ranking pattern: approaches that maintain per-element `read → ALU` interleaving (4-mag, simd_shuffle, batched 8-LUT) outperform approaches that batch reads (SMEM, deferred norm, QC precompute) or eliminate reads but add more ALU (select chain, FMA, bit-arithmetic).
+
+**The remaining 38% gap cannot be closed by rearranging the same reads and ALU.** The only path forward is reducing the total constant read count per element below 4, which requires changing the block format or computation structure.
 
 ## M5 Max Long-Context Discovery (2026-03-27)
 
