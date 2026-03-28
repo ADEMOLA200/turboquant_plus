@@ -6,13 +6,13 @@ Implementation of [TurboQuant](https://research.google/blog/turboquant-redefinin
 
 Compresses transformer KV cache **4.6x** using PolarQuant + Walsh-Hadamard rotation. Near q8_0 prefill speed and ~0.9x decode throughput at long context (Apple Silicon).
 
-**Key contribution:** Attention-gated KV cache decoding ("Sparse V") that skips low-weight V positions during inference. +22.8% decode speed at 32K context, validated on wikitext-103 (50 chunks, CI ±0.021) with no measurable PPL change. Sparse V uses attention weights as a gating signal for computation, skipping work that contributes negligibly to the output.
+**Key contribution:** Attention-gated KV cache decoding ("Sparse V") that skips low-weight V positions during inference. up to +22.8% decode speed at 32K context, validated on wikitext-103 (50 chunks, CI ±0.021) with no measurable PPL change. Sparse V uses attention weights as a gating signal for computation, skipping work that contributes negligibly to the output.
 
 > **Core idea:** shift KV cache optimization from compression to attention-aware computation.
 
 ~1% perplexity increase vs q8_0 due to compression; sparse V introduces no measurable additional degradation. Sparse V ON/OFF delta = 0.000 across all tested contexts and formats.
 
-**Not TurboQuant-specific** — validated across q8_0, q4_0, and turbo3 KV formats.
+**Not TurboQuant-specific** — Sparse V was validated across q8_0, q4_0, and turbo3 KV formats.
 
 Validated end-to-end on Qwen 3.5 35B-A3B (MoE) on M5 Max via llama.cpp Metal.
 
@@ -37,7 +37,7 @@ Validated end-to-end on Qwen 3.5 35B-A3B (MoE) on M5 Max via llama.cpp Metal.
 
 ### Top-of-Tree Results
 
-| Cache Type | Compression | Prefill tok/s | PPL (wikitext-2) | vs q8_0 speed |
+| Cache Type | Compression | Prefill tok/s | PPL (wikitext-2) | vs q8_0 prefill |
 |------------|-------------|--------------|-------------------|---------------|
 | f16 | 1.0x | — | 6.121 | — |
 | q8_0 | 2.0x | 2694 | 5.414 | baseline |
@@ -344,11 +344,9 @@ Detailed debugging logs, gotchas, and benchmarks from the llama.cpp port:
 Issues and PRs welcome. The main areas where help is needed:
 
 1. **CUDA backend** — port the Metal kernels to CUDA for NVIDIA GPU support
-2. **Benchmark hardening** — NIAH (needle-in-a-haystack), KL divergence, multi-run statistics
-3. **Upstream PR** — prepare llama.cpp contribution (CONTRIBUTING.md requirements)
-4. **turbo4 fix** — turbo4 (4-bit variant) broken by block size changes, needs update
-3. **Benchmark hardening** — perplexity evaluation, NIAH testing, multi-run statistics
-4. **Quality metrics** — systematic comparison against q8_0/q4_0 on standard benchmarks
+2. **Upstream PR** — prepare llama.cpp contribution (CONTRIBUTING.md requirements)
+3. **turbo4 fix** — turbo4 (4-bit variant) broken by block size changes, needs update
+4. **Quality metrics** — multi-run statistics, additional task benchmarks
 
 ## License
 

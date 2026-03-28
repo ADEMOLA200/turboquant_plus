@@ -12,7 +12,7 @@ Quantized KV cache compression (e.g., TurboQuant, NVFP4) reduces memory consumpt
 
 The bottleneck is not *how* values are dequantized, but *how many*.
 
-We observe that in flash attention kernels, softmax attention weights are computed *before* value accumulation, and that at long context lengths, 90%+ of these weights are negligible. We propose **sparse V dequantization**: skipping value dequantization for positions where the attention weight falls below a threshold. Rather than making N dequant operations faster, we eliminate $(1-p) \times N$ of them entirely. This shifts the optimization target from instruction-level efficiency to attention-gated computation. On Apple M5 Max with a 35B MoE model, this yields **+22.8% decode throughput at 32K context** with zero perplexity loss, and unexpectedly *improved* needle-in-a-haystack retrieval (9/9 vs 7/9 baseline), suggesting that dequantizing negligible positions may introduce quantization artifacts rather than useful signal in certain tasks. The technique is implemented as a minimal kernel modification and is orthogonal to existing dequant optimizations. Because it operates on the attention distribution rather than the dequantization mechanism itself, it is general to any quantized KV cache scheme — validated on both TurboQuant (3.5-bit) and q8\_0 (8-bit) — and its benefit scales with context length.
+We observe that in flash attention kernels, softmax attention weights are computed *before* value accumulation, and that at long context lengths, 90%+ of these weights are negligible. We propose **sparse V dequantization**: skipping value dequantization for positions where the attention weight falls below a threshold. Rather than making N dequant operations faster, we eliminate $(1-p) \times N$ of them entirely. This shifts the optimization target from instruction-level efficiency to attention-gated computation. On Apple M5 Max with a 35B MoE model, this yields **+22.8% decode throughput at 32K context** with zero perplexity loss, and unexpectedly *improved* needle-in-a-haystack retrieval (9/9 vs 7/9 baseline), suggesting that dequantizing negligible positions may introduce quantization artifacts rather than useful signal in certain tasks. The technique is implemented as a minimal kernel modification and is orthogonal to existing dequant optimizations. Because it operates on the attention distribution rather than the dequantization mechanism itself, it is general to any quantized KV cache scheme — validated across turbo3, q8\_0, and q4\_0 KV formats — and its benefit scales with context length.
 
 ---
 
@@ -390,7 +390,7 @@ Sparse V was evaluated across three KV cache formats with different quantization
 
 No measurable impact on perplexity or retrieval accuracy was observed in any format. Decode speed improvements scale with dequantization cost: turbo3 (expensive dequant) benefits most, q4\_0 (cheap dequant) benefits least.
 
-This suggests that attention-weight magnitude is a reliable proxy for computational relevance, independent of KV representation. Sparse V exhibits consistent ON/OFF equivalence across all formats, indicating that attention-weight magnitude, not quantization scheme, governs computational relevance.
+Sparse V exhibits consistent ON/OFF equivalence across all formats, indicating that attention-weight magnitude, not quantization scheme, governs computational relevance.
 
 ---
 
@@ -411,7 +411,7 @@ More broadly, sparse V dequantization is an instance of a wider class of **atten
 
 ## 9. Conclusion
 
-We present a 3-line modification to flash attention kernels that yields up to 22.8% decode throughput improvement for quantized KV caches at long context, with no measurable quality degradation across all tested metrics and formats, and an observed improvement in retrieval accuracy, suggesting that dequantizing negligible positions may introduce quantization artifacts into the attention output.
+We present a 3-line modification to flash attention kernels that yields up to 22.8% decode throughput improvement for quantized KV caches at long context, with no measurable quality degradation across all tested metrics and formats, and an observed improvement in retrieval accuracy, consistent with the hypothesis that dequantizing negligible positions may introduce quantization artifacts into the attention output.
 
 The core insight is straightforward: Making N dequant operations faster is bounded by hardware limits; eliminating $(1-p) \times N$ of them entirely is not. After 14 failed attempts to optimize the dequant instruction itself, sparse V succeeds by changing the question from "how do we dequantize faster?" to "should we dequantize at all?"
 
