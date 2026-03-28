@@ -375,6 +375,10 @@ Issues and PRs welcome. The main areas where help is needed:
 3. **turbo4 CUDA port** — turbo4 4-bit PolarQuant validated on Metal, needs CUDA port (see [issue #17](https://github.com/TheTom/llama-cpp-turboquant/issues/17))
 4. **Quality metrics** — multi-run statistics, additional task benchmarks
 
+## Support
+
+If you find this work useful, you can support it via [GitHub Sponsors](https://github.com/sponsors/TheTom).
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
