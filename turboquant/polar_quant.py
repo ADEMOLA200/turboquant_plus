@@ -29,10 +29,11 @@ class PolarQuant:
         x_hat = pq.dequantize(indices, norms)  # reconstructed
     """
 
-    def __init__(self, d: int, bit_width: int, seed: int = 42):
+    def __init__(self, d: int, bit_width: int, seed: int = 42, norm_correction: bool = True):
         self.d = d
         self.bit_width = bit_width
         self.n_centroids = 1 << bit_width
+        self.norm_correction = norm_correction
 
         rng = np.random.default_rng(seed)
         self.rotation = random_rotation_dense(d, rng)
@@ -84,8 +85,18 @@ class PolarQuant:
             indices = indices[np.newaxis, :]
             norms = np.array([norms])
 
-        # Look up centroids → unit-norm reconstruction
+        # Look up centroids in the rotated domain.
         y_hat = self.centroids[indices]
+
+        # Production TurboQuant rescales the reconstructed rotated vector by
+        # grp_norm / recon_norm before the inverse rotation. In the normalized
+        # Python prototype, grp_norm = 1, so this simplifies to re-normalizing
+        # y_hat back to unit norm.
+        if self.norm_correction:
+            y_hat_norms = np.linalg.norm(y_hat, axis=1, keepdims=True)
+            y_hat_norms = np.where(y_hat_norms > 1e-10, y_hat_norms, 1.0)
+            y_hat = y_hat / y_hat_norms
+
         x_hat_unit = (self.rotation.T @ y_hat.T).T
 
         # Rescale by original norms

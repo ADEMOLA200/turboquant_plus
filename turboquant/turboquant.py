@@ -40,7 +40,7 @@ class TurboQuant:
                            tq.dequantize(tq.quantize(y)))
     """
 
-    def __init__(self, d: int, bit_width: int, seed: int = 42):
+    def __init__(self, d: int, bit_width: int, seed: int = 42, norm_correction: bool = True):
         """
         Args:
             d: Vector dimension.
@@ -55,7 +55,9 @@ class TurboQuant:
         self.bit_width = bit_width
 
         # Stage 1: PolarQuant at (b-1) bits
-        self.polar_quant = PolarQuant(d, bit_width=bit_width - 1, seed=seed)
+        self.polar_quant = PolarQuant(
+            d, bit_width=bit_width - 1, seed=seed, norm_correction=norm_correction,
+        )
 
         # Stage 2: QJL for residual (uses different seed)
         self.qjl = QJL(d, seed=seed + 1000)
@@ -133,10 +135,12 @@ class TurboQuantMSE:
     Simpler, slightly less storage overhead (no QJL signs needed).
     """
 
-    def __init__(self, d: int, bit_width: int, seed: int = 42):
+    def __init__(self, d: int, bit_width: int, seed: int = 42, norm_correction: bool = True):
         self.d = d
         self.bit_width = bit_width
-        self.polar_quant = PolarQuant(d, bit_width=bit_width, seed=seed)
+        self.polar_quant = PolarQuant(
+            d, bit_width=bit_width, seed=seed, norm_correction=norm_correction,
+        )
 
     def quantize(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Returns (indices, norms)."""

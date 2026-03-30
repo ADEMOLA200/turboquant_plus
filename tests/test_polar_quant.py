@@ -108,6 +108,26 @@ class TestPolarQuantRoundTrip:
         assert indices.min() >= 0
         assert indices.max() < (1 << 3)
 
+    def test_norm_correction_preserves_unit_norm_better(self):
+        """Norm correction should bring reconstructed unit vectors closer to norm 1."""
+        d = 128
+        rng = np.random.default_rng(11)
+        x = rng.standard_normal(d)
+        x = x / np.linalg.norm(x)
+
+        pq_uncorrected = PolarQuant(d=d, bit_width=3, seed=42, norm_correction=False)
+        pq_corrected = PolarQuant(d=d, bit_width=3, seed=42, norm_correction=True)
+
+        idx_u, norm_u = pq_uncorrected.quantize(x)
+        idx_c, norm_c = pq_corrected.quantize(x)
+
+        x_hat_u = pq_uncorrected.dequantize(idx_u, norm_u)
+        x_hat_c = pq_corrected.dequantize(idx_c, norm_c)
+
+        err_u = abs(np.linalg.norm(x_hat_u) - 1.0)
+        err_c = abs(np.linalg.norm(x_hat_c) - 1.0)
+        assert err_c < err_u
+
 
 class TestPolarQuantResidual:
     """Test quantize_and_residual method."""

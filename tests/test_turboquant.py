@@ -147,6 +147,24 @@ class TestTurboQuantMSE:
         # because all 3 bits go to MSE (no QJL stage)
         assert mse < 0.1, f"MSE-only 3-bit MSE {mse:.4f} too high"
 
+    def test_norm_correction_can_be_disabled(self):
+        d = 64
+        x = np.random.default_rng(2).standard_normal(d)
+
+        tq_old = TurboQuantMSE(d=d, bit_width=3, seed=42, norm_correction=False)
+        tq_new = TurboQuantMSE(d=d, bit_width=3, seed=42, norm_correction=True)
+
+        idx_old, norm_old = tq_old.quantize(x)
+        idx_new, norm_new = tq_new.quantize(x)
+
+        np.testing.assert_array_equal(idx_old, idx_new)
+        np.testing.assert_allclose(norm_old, norm_new)
+
+        x_hat_old = tq_old.dequantize(idx_old, norm_old)
+        x_hat_new = tq_new.dequantize(idx_new, norm_new)
+
+        assert not np.allclose(x_hat_old, x_hat_new)
+
 
 class TestCompressedSizeBits:
     """Test compressed_size_bits method."""

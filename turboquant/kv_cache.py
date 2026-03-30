@@ -52,7 +52,14 @@ class KVCacheCompressor:
         compressor.compress_token(k_vec, v_vec, layer=0, head=0)
     """
 
-    def __init__(self, head_dim: int, k_bits: int = 3, v_bits: int = 3, seed: int = 42):
+    def __init__(
+        self,
+        head_dim: int,
+        k_bits: int = 3,
+        v_bits: int = 3,
+        seed: int = 42,
+        norm_correction: bool = True,
+    ):
         """
         Args:
             head_dim: Dimension of each attention head vector.
@@ -65,10 +72,14 @@ class KVCacheCompressor:
         self.v_bits = v_bits
 
         # K cache uses full TurboQuant (inner product preservation)
-        self.k_quantizer = TurboQuant(head_dim, bit_width=k_bits, seed=seed)
+        self.k_quantizer = TurboQuant(
+            head_dim, bit_width=k_bits, seed=seed, norm_correction=norm_correction,
+        )
 
         # V cache uses MSE-only PolarQuant (value reconstruction)
-        self.v_quantizer = TurboQuantMSE(head_dim, bit_width=v_bits, seed=seed + 500)
+        self.v_quantizer = TurboQuantMSE(
+            head_dim, bit_width=v_bits, seed=seed + 500, norm_correction=norm_correction,
+        )
 
     def compress(self, k_cache: np.ndarray, v_cache: np.ndarray) -> CompressedKVCache:
         """Compress full KV cache tensors.
