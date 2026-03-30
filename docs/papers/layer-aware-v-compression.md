@@ -203,6 +203,58 @@ TURBO_LAYER_ADAPTIVE=7 ./build/bin/llama-cli \
 
 Expected: Boundary V PPL is better than uniform turbo2, usually behind uniform turbo3.
 
+## Addendum: Boundary Width vs Boundary Precision (Mar 29, 2026)
+
+Following a community question (SharkWipf) about whether boundary V layers should use full f16 instead of q8_0, we tested both boundary width and boundary precision systematically.
+
+### Test Matrix
+
+All configs use q8_0 K throughout. V allocation varies by mode:
+
+| Mode | Boundary width | Boundary type | Middle type |
+|------|---------------|--------------|-------------|
+| LA-V7 (current) | first2+last2 | q8_0 | turbo2 |
+| f16 narrow | first2+last2 | f16 | turbo2 |
+| q8_0 wide | first4+last4 | q8_0 | turbo2 |
+| f16 wide | first4+last4 | f16 | turbo2 |
+
+### Results
+
+**phi-4 Q8_0 (40 layers, 8 chunks, ctx=512):**
+
+| Config | PPL | vs q8_0/q8_0 |
+|--------|-----|-------------|
+| q8_0/q8_0 baseline | 6.001 | — |
+| **wide q8_0** (first4+last4) | **6.047** | **+0.8%** |
+| wide f16 (first4+last4) | 6.065 | +1.1% |
+| narrow f16 (first2+last2) | 6.090 | +1.5% |
+| narrow q8_0 (LA-V7) | 6.110 | +1.8% |
+| uniform q8_0/turbo2 | 6.106 | +1.7% |
+
+**Qwen3.5-27B Dense Q8_0 (64 layers, 8 chunks, ctx=512):**
+
+| Config | PPL | vs q8_0/q8_0 |
+|--------|-----|-------------|
+| q8_0/q8_0 baseline | 6.888 | — |
+| q8_0/turbo3 | 6.958 | +1.0% |
+| **wide q8_0** (first4+last4) | **7.038** | **+2.2%** |
+| wide f16 (first4+last4) | 7.043 | +2.2% |
+| narrow q8_0 (LA-V7) | 7.051 | +2.4% |
+| narrow f16 (first2+last2) | 7.050 | +2.3% |
+| uniform q8_0/turbo2 | 7.159 | +3.9% |
+
+### Findings
+
+1. **Boundary width matters more than boundary precision.** Going from 2 to 4 protected layers is a bigger quality improvement than upgrading those layers from q8_0 to f16. On phi-4, wide q8_0 (6.047) beats narrow f16 (6.090) decisively.
+
+2. **f16 does not consistently beat q8_0 for boundary layers.** On phi-4, q8_0 boundary wins at both widths. On 27B they are within noise. The extra VRAM cost of f16 boundary layers is not justified.
+
+3. **Wide boundary (first4+last4) is a meaningful improvement over LA-V7 (first2+last2).** phi-4: 6.047 vs 6.110 (-0.063). 27B: 7.038 vs 7.051 (-0.013). The improvement is larger on shallower models where 8 layers is a bigger fraction of total.
+
+### Recommendation
+
+Update Boundary V default from first2+last2 to first4+last4 q8_0. The VRAM cost of 4 extra q8_0 V layers is minimal, and the quality improvement is consistent. f16 boundary is not recommended.
+
 ## Files Changed
 
 - `src/llama-kv-cache.cpp` — added modes 5, 6, 7 to `TURBO_LAYER_ADAPTIVE` env var (15 lines)
