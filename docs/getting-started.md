@@ -80,6 +80,39 @@ Symmetric. Works great on Llama 70B, Command-R+ 104B, Mistral 24B, Qwen3.5 MoE. 
 
 For full details see [Configuration Recommendations](turboquant-recommendations.md).
 
+## Built-in Optimizations
+
+These features are enabled by default on recent builds. No extra flags needed.
+
+### Sparse V Dequant (Metal only)
+
+Skips V dequantization for positions where the softmax attention weight is negligible (< 1e-6). At long context, 90%+ of positions have negligible weight, so this eliminates roughly half the total dequant cost.
+
+- +22.8% decode throughput at 32K context on MoE models
+- Zero perplexity impact (validated at 32K, 50 chunks, wikitext-103)
+- Works with any KV cache type (turbo3, q8_0, q4_0)
+- Opt-out: `TURBO_SPARSE_V=0`
+
+See [Sparse V paper](papers/sparse-v-dequant.md).
+
+### Boundary V (auto-enabled with turbo2-V)
+
+Protects the first 2 + last 2 transformer layers with q8_0-V while compressing all remaining layers with turbo2-V. Recovers 37-91% of the quality gap between turbo2 and turbo3, with no speed penalty.
+
+- Auto-enabled when you use `-ctv turbo2`
+- Opt-out: `TURBO_LAYER_ADAPTIVE=0`
+- Manually enable on older builds: `TURBO_LAYER_ADAPTIVE=7`
+
+See [Boundary V paper](papers/layer-aware-v-compression.md).
+
+### Maximum V Compression
+
+```bash
+# turbo2-V with Boundary V (auto-enabled)
+# Best for extreme memory pressure. +5-9.5% PPL.
+./build/bin/llama-server -m model.gguf -ctk q8_0 -ctv turbo2 -fa on -ngl 99
+```
+
 ## Benchmarking
 
 Help the project by sharing your numbers. Here's how to generate comparable results.
