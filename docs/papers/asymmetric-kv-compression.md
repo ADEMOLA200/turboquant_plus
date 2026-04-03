@@ -265,6 +265,13 @@ These findings have been independently confirmed by multiple researchers:
 - APEX Mini (12.2 GB) + TurboQuant = 35B MoE at 8K context on a 16GB consumer GPU
 - Independently confirms boundary layer sensitivity for weights: "first and last 5 transformer layers are 10x more sensitive than the middle," consistent with our Boundary V finding for KV cache
 
+**vLLM TurboQuant PR** — [vllm-project/vllm#38479](https://github.com/vllm-project/vllm/pull/38479) (2026-04-03):
+- TurboQuant KV cache compression being integrated into vLLM (major production inference framework)
+- PR author (@vibhavagarwal5) explicitly cites turboquant_plus for boundary layer implementation and asymmetric KV cache
+- @Alberto-Codes independently diagnosed the 0% gsm8k quality failure as the symmetric K/V compression problem documented in our asymmetric paper
+- @varjoranta validated turbo4-resurrection findings via ablation on A100 with Qwen3-8B, confirming our paper's predictions about compression quality tradeoffs
+- Community testing across H100, A100, A4000, DGX Spark (GB10) confirms our findings that symmetric turbo3 on sensitive models produces garbage, asymmetric fixes it
+
 ---
 
 ## 8. Limitations
