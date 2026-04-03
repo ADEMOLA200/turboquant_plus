@@ -45,6 +45,7 @@ This table shows the largest compressed model each GPU has successfully run. It'
 
 | GPU | VRAM | Largest Tested | Status | Decode vs Q8_0 | Tester |
 |-----|------|---------------------|--------|----------------|--------|
+| **RTX PRO 6000 Blackwell** | 96GB | 27B | ✅ | **109%** (Config I faster than Q8_0) | Community (CUDA) |
 | **RTX 5090** | 32GB | 27B | ✅ | **107%** (load-time conversion) | Community (CUDA) |
 | **RTX 4090** | 24GB | 14B Config I, 27B+KV | ✅ | 63–67% (fused), 100% (load-time) | Community (CUDA) |
 | **RTX 4070 Ti** | 12GB | 9B (KV only so far) | ✅ | 2.25x faster with turbo3 KV | Community (CUDA) |
@@ -71,7 +72,7 @@ This table shows the largest compressed model each GPU has successfully run. It'
 | Qwen2.5-1.5B | 1.76G | 1.28G | -27% | +1.7–1.9% | 96% (Metal), 70% (4090) | Multiple testers |
 | Qwen2.5-3B | 3.37G | 2.32G | -31% | +1.73% | 67% (4090) | Community (CUDA) |
 | Qwen2.5-7B | 7.54G | 5.17G | -31% | +1.71% | 64% (4090), 99% (M4 Max) | Community (CUDA), Community (Metal) |
-| Qwen3.5-27B | 26.6G | 19.1G | -28% | +1.3% (Metal), +2.5% (L40S) | 99% (M5), 85% (M4), 81% (L40S), **107% (5090)** | Multiple testers |
+| Qwen3.5-27B | 26.6G | 19.1G | -28% | +0.05% (PRO 6000), +1.3% (Metal), +2.5% (L40S) | **109% (PRO 6000)**, 99% (M5), 85% (M4), 81% (L40S), **107% (5090)** | Multiple testers |
 | Qwen3.5-35B MoE | 34.4G | 21.6G | -37% | +1.4% | 102% (Metal) | Internal (Metal) |
 | Qwen2.5-72B | 72.0G | 45.8G | -38% | +3.9% (8ch) | 95% (Metal) | Internal (Metal) |
 
