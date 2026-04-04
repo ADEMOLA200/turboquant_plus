@@ -301,6 +301,12 @@ These findings have been independently confirmed by multiple researchers:
 - Confirms: **no TBQ degradation on head_dim=128 models** — the 30.8% overall accuracy is a Qwen3-14B Q4_K_M model limitation, not a cache fidelity issue
 - Notable: symmetric turbo3 works on Qwen3-14B Q4_K_M (unlike Qwen2.5-7B Q4_K_M which is catastrophic). Model-specific sensitivity, not universal Qwen vulnerability
 
+**@redwolfweb** — [Qwen3.5-27B Q4_K_M, RTX 5090, Debian 13](https://github.com/TheTom/llama-cpp-turboquant/issues/47#issuecomment-4185458440) (2026-04-04):
+- Confirmed head_dim=256 fix works across **all 6 K/V combinations**: turbo2/turbo2, turbo3/turbo3, turbo3/q8_0, q8_0/turbo3, turbo2/q8_0, q8_0/turbo2
+- Each config tested with philosophical + mathematical prompts plus chat. Also tested 23,539-token input. No errors, correct answers, no grammar parse errors
+- Originally hit corrupt multilingual output on Madreag's fork with symmetric turbo3. Madreag's fork needs to pick up the same fix separately
+- First end-user confirmation of the head_dim=256 fix on Blackwell (SM 120) consumer hardware
+
 **@nihilistau** — [Vilenkin basis spectral analysis, Phi-2 + turbo3](https://github.com/ggml-org/llama.cpp/discussions/20969#discussioncomment-16442465) (2026-04-03):
 - Independent harmonic analysis of K and V cache vectors in the Vilenkin (p-adic/mixed-radix) basis suggests a spectral explanation for why asymmetric compression works
 - K vectors appear to concentrate energy in a small number of universal spectral indices (6 indices at 100% universality across all positions). V vectors appear to spread energy diffusely across the entire spectrum (max 20% universality, no dominant modes)
