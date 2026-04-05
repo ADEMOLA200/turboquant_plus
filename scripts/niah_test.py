@@ -679,17 +679,11 @@ def start_server(
     if not server_bin.exists():
         raise FileNotFoundError(f"llama-server not found at {server_bin}")
 
-    # Parse "k_type/v_type" notation (e.g. "q8_0/turbo3") into separate K and V args
-    if "/" in cache_type:
-        k_type, v_type = cache_type.split("/", 1)
-    else:
-        k_type = v_type = cache_type
-
     cmd = [
         str(server_bin),
         "-m", str(model_path),
-        "--cache-type-k", k_type,
-        "--cache-type-v", v_type,
+        "--cache-type-k", cache_type,
+        "--cache-type-v", cache_type,
         "-c", str(context_size),
         "-ngl", "99",
         "-fa", "on",
