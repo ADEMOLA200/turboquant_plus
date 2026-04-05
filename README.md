@@ -556,7 +556,7 @@ TurboQuant KV cache compression is being ported to Apple's [MLX framework](https
 |--------|---------|--------|-------------|-----|-----------|------------|
 | Baseline (f16 KV) | 584 | **204** | 100% | 3.0732 | — | — |
 | turbo4 all fused | 1,153 (+97%) | 168 | 83% | 3.0890 | +0.51% | 73% |
-| turbo4 asymmetric fused + boundary | 112 (+64%) | 23.7 | **81%** | 3.6786 | **-0.05%** | 73% |
+| turbo4 asymmetric fused + boundary | 140 (+106%) | **60.6** | **96%** | 3.6786 | **-0.05%** | 73% |
 | turbo3 | 264 | 170 | 83% | 3.0702 | -0.10% | 80% |
 
 **Quality:** Output text indistinguishable from baseline. KL divergence < 0.001, cosine similarity > 0.989.
