@@ -4,6 +4,19 @@
 
 > **🍎 On Apple Silicon and want the fastest path?** Use [ekryski/mlx-swift-lm](https://github.com/ekryski/mlx-swift-lm) — Eric Kryski's Swift MLX implementation that I've been actively collaborating on. Native Swift, ~2.5x faster decode than Python mlx-lm, full TurboQuant+ support including turbo4v2 (4-bit K + 2-bit V). 144 tok/s on Qwen3.5-35B-A3B MoE at 4K on M5 Max. This llama.cpp repo is for cross-platform deployment (CUDA, ROCm, CPU, Metal).
 
+## Prebuilt Binaries
+
+Download ready-to-run builds from [Releases](https://github.com/TheTom/llama-cpp-turboquant/releases). No build tools needed.
+
+| Platform | Download |
+|----------|----------|
+| Mac (Apple Silicon, Metal) | `turboquant-plus-*-macos-arm64-metal.tar.gz` |
+| Windows (CUDA 12.4) | `turboquant-plus-*-windows-x64-cuda12.4.zip` |
+
+Unpack and run. Includes `llama-server`, `llama-bench`, `llama-cli`, and all tools.
+
+---
+
 Implementation of [TurboQuant](https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/) (ICLR 2026) with implementation work, experiments, and follow-on findings beyond the base paper. KV cache compression for local LLM inference.
 
 ## Note
