@@ -247,18 +247,31 @@ def _add_score_parser(sub):
                         "requires --rniah-haystack and --rniah-ctx-max.")
     p.add_argument("--axis-rniah", action="store_true",
                    help="Enable Axis C (R-NIAH, v0.2). Probes long-context "
-                        "retrieval degradation. Requires --rniah-haystack and "
-                        "--rniah-ctx-max. Cost: ~10–15 min on a 7B Q8 "
-                        "(O(lengths × positions × n_trials × 2) generations).")
+                        "retrieval degradation. Requires --rniah-haystack "
+                        "(auto-resolved from cache when omitted). Cost: "
+                        "~10–15 min on a 7B Q8 at 16K, scaling roughly "
+                        "linearly with max length.")
     p.add_argument("--rniah-haystack", type=Path, default=None,
-                   help="Path to long-text haystack corpus for R-NIAH "
-                        "(e.g. wikitext-103 train).")
+                   help="Path to long-text haystack corpus for R-NIAH. "
+                        "Auto-resolved from ~/.cache/refract/ when omitted "
+                        "(wiki.train.raw, fits cells up to ~16K cleanly).")
+    p.add_argument("--rniah-up-to", type=int, default=16384,
+                   help="R-NIAH max context length to test. Lengths are "
+                        "auto-generated as a doubling step-up starting at "
+                        "4096 (4K, 8K, 16K, 32K, ... up to this value). "
+                        "Default: 16384 (4K, 8K, 16K). Pass 32768 / 65536 / "
+                        "131072 for deeper long-context audits. Cells are "
+                        "always run at positions 0.10/0.50/0.90 unless "
+                        "overridden via --rniah-positions.")
     p.add_argument("--rniah-ctx-max", type=int, default=None,
-                   help="Largest context length the model supports. Cells "
-                        "with --rniah-lengths above this are skipped.")
+                   help="(Power-user) hard ceiling for R-NIAH cells. Cells "
+                        "longer than this are skipped. Defaults to "
+                        "--rniah-up-to. Useful when the model cannot "
+                        "actually do its nominal max context.")
     p.add_argument("--rniah-lengths", type=str, default=None,
-                   help="Comma-separated R-NIAH context lengths in tokens. "
-                        "Default: 4096,8192,16384,32768,65536.")
+                   help="(Power-user) comma-separated R-NIAH lengths, "
+                        "overrides --rniah-up-to. Default: synthesised "
+                        "from --rniah-up-to.")
     p.add_argument("--rniah-positions", type=str, default=None,
                    help="Comma-separated R-NIAH needle positions as "
                         "fractions of length. Default: 0.10,0.50,0.90.")
@@ -433,13 +446,27 @@ def _run_score(args) -> int:
     # ---- R-NIAH (v0.2 opt-in) ---------------------------------------------
     rniah = None
     if args.axis_rniah:
-        if args.rniah_haystack is None or args.rniah_ctx_max is None:
-            print("ERROR: --axis-rniah requires --rniah-haystack and --rniah-ctx-max.")
+        if args.rniah_haystack is None:
+            print("ERROR: --axis-rniah requires --rniah-haystack "
+                  "(or run `refract fetch` first to populate the cache).")
             return 2
-        lengths = (
-            tuple(int(x) for x in args.rniah_lengths.split(","))
-            if args.rniah_lengths else None
-        )
+        # v0.3.2: synthesize lengths from --rniah-up-to (doubling step-up
+        # from 4K) when --rniah-lengths isn't set. Default --rniah-ctx-max
+        # to --rniah-up-to so the user only has one knob to think about.
+        if args.rniah_lengths:
+            lengths = tuple(int(x) for x in args.rniah_lengths.split(","))
+        else:
+            up_to = args.rniah_up_to
+            n = 4096
+            synth: list[int] = []
+            while n <= up_to:
+                synth.append(n)
+                n *= 2
+            if not synth:
+                synth = [up_to]
+            lengths = tuple(synth)
+        if args.rniah_ctx_max is None:
+            args.rniah_ctx_max = max(lengths)
         positions = (
             tuple(float(x) for x in args.rniah_positions.split(","))
             if args.rniah_positions else None

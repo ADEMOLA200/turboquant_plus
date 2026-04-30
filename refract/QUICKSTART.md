@@ -108,22 +108,37 @@ plain-English diagnosis of what the per-axis pattern means.
 
 ## Step 2 — full audit (25–30 min on a 7B Q8)
 
-Add `--full`. The haystack file is also auto-resolved from the cache.
+Add `--full`. Both haystack file and corpus are auto-resolved from the cache.
 
 ```
 python3 -m refract.cli score \
     --model /path/to/model.gguf \
     --candidate "ctk=q8_0,ctv=q8_0" \
     --prompts refract/prompts/v0.1.jsonl \
-    --corpus /path/to/wiki.test.raw \
     --full \
-    --rniah-haystack /path/to/wiki.train.raw \
-    --rniah-ctx-max 16384 \
-    --json-out my-full-report.json
+    --rniah-up-to 16384 \
+    --json-out my-full-report.json \
+    --html-out my-full-report.html
 ```
 
-`--rniah-ctx-max` should match (or be below) your model's max context.
-Cells above this are skipped — better to know upfront.
+### Long-context audit knob
+
+`--rniah-up-to N` controls how deep R-NIAH probes. Lengths are
+auto-generated as a doubling step-up from 4K up to N:
+
+| `--rniah-up-to` | Lengths tested | R-NIAH wall-time on 7B Q8 |
+|---|---|---|
+| `16384` (default) | 4K, 8K, 16K | ~10–15 min |
+| `32768` | 4K, 8K, 16K, 32K | ~25–35 min |
+| `65536` | 4K, 8K, 16K, 32K, 64K | ~60–90 min |
+| `131072` | 4K … 128K | ~3+ hours |
+
+Pick a value matching your model's actual usable context. If the model
+fails at 64K under fp16, R-NIAH will report `confidence: low` for those
+cells (per-cell `base_acc = 0`) — cleaner to cap below that.
+
+Power users: `--rniah-lengths 4096,16384,65536` overrides the doubling
+step-up with an explicit list.
 
 ## Step 3 — interpret the result
 
