@@ -190,6 +190,86 @@ def test_run_repeatability_warning_when_json_unparseable(tmp_path, monkeypatch, 
     assert "could not parse" in out
 
 
+def test_run_selftest_detects_linux_shared_library_error(tmp_path, monkeypatch, capsys):
+    """Bug: a binary that can't find libllama.so emits empty --help and a
+    'cannot open shared object' stderr. Old selftest read empty stdout and
+    blamed '--jinja missing'. New selftest detects the real launch failure
+    AND emits a Linux-specific remediation hint."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("llama-cli", "llama-completion",
+                 "llama-tokenize", "llama-perplexity"):
+        (bin_dir / tool).write_text("")
+    monkeypatch.setattr("refract.runner.DEFAULT_BIN_DIR", bin_dir)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda *a, **kw: mock.MagicMock(
+            stdout="",
+            stderr=("/opt/llama.cpp/bin/llama-completion: error while "
+                    "loading shared libraries: libllama.so.0: cannot open "
+                    "shared object file: No such file or directory"),
+            returncode=127,
+        ),
+    )
+    args = argparse.Namespace(backend="llamacpp", model=None)
+    rc = cli._run_selftest(args)
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "can't launch" in out
+    assert "LD_LIBRARY_PATH" in out or "ldconfig" in out
+    # Must NOT mistakenly blame --jinja
+    assert "--jinja missing" not in out
+
+
+def test_run_selftest_detects_windows_dll_error(tmp_path, monkeypatch, capsys):
+    """Same root cause on Windows: DLLs not on PATH → empty --help, code
+    0xc0000135. Selftest gives the right remediation per OS."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("llama-cli", "llama-completion",
+                 "llama-tokenize", "llama-perplexity"):
+        (bin_dir / tool).write_text("")
+    monkeypatch.setattr("refract.runner.DEFAULT_BIN_DIR", bin_dir)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda *a, **kw: mock.MagicMock(
+            stdout="",
+            stderr=("The application failed to start because llama.dll was "
+                    "not found. Error 0xc0000135."),
+            returncode=3221225781,  # 0xc0000135
+        ),
+    )
+    args = argparse.Namespace(backend="llamacpp", model=None)
+    rc = cli._run_selftest(args)
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "can't launch" in out
+    assert "PATH" in out  # Windows hint mentions adding bin dir to PATH
+
+
+def test_run_selftest_launch_succeeds_then_jinja_check_runs(tmp_path, monkeypatch, capsys):
+    """When binary launches OK + --jinja in help → success path."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("llama-cli", "llama-completion",
+                 "llama-tokenize", "llama-perplexity"):
+        (bin_dir / tool).write_text("")
+    monkeypatch.setattr("refract.runner.DEFAULT_BIN_DIR", bin_dir)
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda *a, **kw: mock.MagicMock(
+            stdout="usage: ...\n--jinja apply chat template\n",
+            stderr="", returncode=0,
+        ),
+    )
+    args = argparse.Namespace(backend="llamacpp", model=None)
+    rc = cli._run_selftest(args)
+    out = capsys.readouterr().out
+    assert "--jinja chat template flag supported" in out
+    # No misleading launch-failure message
+    assert "can't launch" not in out
+
+
 def test_run_repeatability_noisy_label(tmp_path, monkeypatch, capsys):
     """Composite stdev between 1.0 and 3.0 → NOISY warning, not unstable."""
     _patch_backends(monkeypatch)

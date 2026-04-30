@@ -643,21 +643,49 @@ def _run_selftest(args) -> int:
             else:
                 print(f"  ✗ {tool}  (set LLAMA_CPP_BIN_DIR or rebuild)")
                 failures.append(f"missing binary: {tool}")
-        # Check for --jinja flag support
+        # Check for --jinja flag support. Capture stderr too — when the
+        # binary can't load (e.g. Linux missing libllama.so on PATH, Windows
+        # missing the DLL next to the exe), --help fails *before* it can
+        # print its help text. Without checking the launch result, an empty
+        # stdout would cause a misleading "--jinja missing" diagnosis.
         try:
             import subprocess as _sp
-            help_text = _sp.run(
+            proc = _sp.run(
                 [str(DEFAULT_BIN_DIR / "llama-completion"), "--help"],
                 capture_output=True, text=True, timeout=10,
-            ).stdout
-            if "--jinja" in help_text:
+            )
+            help_text = proc.stdout
+            launch_failed = (
+                proc.returncode != 0 and not help_text.strip()
+            )
+            stderr_tail = (proc.stderr or "")[-400:]
+            if launch_failed:
+                print(f"  ✗ llama-completion can't launch (rc={proc.returncode})")
+                if stderr_tail:
+                    print(f"      stderr: {stderr_tail.strip()}")
+                # Linux + Windows shared-library hints
+                hint = ""
+                if "cannot open shared object" in stderr_tail or \
+                   "libllama" in stderr_tail.lower():
+                    hint = (" — Linux: libllama.so/libggml*.so not on the "
+                            "loader path. Add the bin dir to LD_LIBRARY_PATH "
+                            "or register it via ldconfig.")
+                elif "dll" in stderr_tail.lower() or \
+                     "0xc0000135" in stderr_tail.lower():
+                    hint = (" — Windows: required DLLs (llama.dll, ggml-*.dll) "
+                            "not next to the .exe. Copy them from the build "
+                            "dir or add the bin dir to PATH.")
+                failures.append(
+                    f"llama-completion failed to launch (rc={proc.returncode}){hint}"
+                )
+            elif "--jinja" in help_text:
                 print("  ✓ --jinja chat template flag supported")
             else:
                 print("  ✗ --jinja not in llama-completion help")
                 failures.append("--jinja missing — chat templates won't apply")
             if "REFRACT_TRAJECTORY" in help_text or "trajectory" in help_text.lower():
                 print("  ✓ REFRACT_TRAJECTORY likely supported")
-            else:
+            elif not launch_failed:
                 # The patch is env-var triggered, no help-string evidence.
                 # Run a probe instead.
                 warnings.append(
