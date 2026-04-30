@@ -1,29 +1,39 @@
 [project]
 name = "turboquant"
 version = "0.1.0"
-description = "TurboQuant: KV cache compression via PolarQuant + QJL (ICLR 2026)"
-# REFRACT (refract/) works on Python 3.9+ thanks to
-# `from __future__ import annotations`; the rest of turboquant uses 3.10+
-# typing features. Lower the floor when REFRACT-only consumers complain.
+description = "TurboQuant + REFRACT: KV-cache quantization (TurboQuant) and quality oracle (REFRACT)"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.9"
-dependencies = [
-    "numpy>=1.24",
-    "scipy>=1.10",
+authors = [
+    { name = "Tom (TheTom)" },
+]
+keywords = ["llm", "kv-cache", "quantization", "evaluation", "llama-cpp", "mlx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+# REFRACT itself has zero non-stdlib deps — kept that way deliberately so
+# `pip install .` for the alpha is one command and pulls nothing extra.
+# numpy / scipy / etc. live under the `turboquant` extra below; they're
+# only needed for the TurboQuant Python implementation, NOT for REFRACT.
+dependencies = []
+
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-]
-bench = [
-    "matplotlib",
-]
-# REFRACT optional backend deps. Install with:
-#   pip install -e .[refract-mlx]    # MLX backend (Apple Silicon)
-#   pip install -e .[refract-vllm]   # vLLM backend (CUDA/ROCm; skeleton today)
-# The llama.cpp backend has no Python deps (subprocess-only); it requires the
-# llama.cpp binaries built separately. See refract/QUICKSTART.md.
+# REFRACT alpha testers: `pip install -e .` is enough. These extras are
+# only needed if you run the matching backend.
 refract-mlx = [
     "mlx>=0.20",
     "mlx-lm>=0.31",  # qwen3_5 + gemma-4 support requires 0.31+
@@ -31,6 +41,26 @@ refract-mlx = [
 refract-vllm = [
     "vllm>=0.5",
 ]
+# TurboQuant Python implementation (separate from REFRACT). Install with
+# `pip install -e .[turboquant]` if you're running benchmarks or unit tests
+# under turboquant/.
+turboquant = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "coverage>=7.0",
+]
+bench = [
+    "matplotlib",
+]
+
+[project.urls]
+Homepage = "https://github.com/TheTom/turboquant_plus"
+Repository = "https://github.com/TheTom/turboquant_plus"
+Issues = "https://github.com/TheTom/turboquant_plus/issues"
 
 [project.scripts]
 refract = "refract.cli:main"
@@ -43,4 +73,5 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# Both turboquant/ and refract/ ship their own tests/ subtree.
+testpaths = ["tests", "refract/tests"]

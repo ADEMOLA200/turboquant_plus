@@ -8,6 +8,41 @@
 
 **REF**erence-anchored **R**obust **A**cid-test for **C**ompressed **T**ransformers.
 
+## Install
+
+```bash
+pip install -e .            # REFRACT alpha — zero non-stdlib deps
+pip install -e .[refract-mlx]   # add the MLX backend (Apple Silicon)
+pip install -e .[refract-vllm]  # add the vLLM backend (CUDA/ROCm; skeleton)
+pip install -e .[turboquant]    # add the TurboQuant Python implementation
+pip install -e .[dev]           # pytest + coverage
+```
+
+The base install gives you the `refract` CLI with no third-party
+dependencies. Backends are extras you opt into.
+
+## Platform support
+
+REFRACT itself (Python framework + report renderer + CLI) is
+platform-portable. The constraint is which **backend** runs on your OS:
+
+| OS | llamacpp backend | mlx backend | vllm backend |
+|---|---|---|---|
+| macOS (Apple Silicon) | ✅ primary dev target | ✅ production | n/a |
+| Linux (Ubuntu 24.04, x86_64) | ✅ verified in Docker | n/a (Apple Silicon only) | ⚠️ skeleton |
+| Windows | ⚠️ TBD (Python side portable; not run end-to-end yet) | n/a | ⚠️ skeleton |
+
+The llama.cpp backend needs the patched binaries (`llama-cli`,
+`llama-completion`, `llama-tokenize`, `llama-perplexity`) on the loader
+path — `LD_LIBRARY_PATH` / `ldconfig` on Linux, DLLs next to the `.exe`
+or on `PATH` on Windows. `selftest` detects this and prints the right
+remediation per OS. MLX is Apple Silicon only by upstream design. vLLM
+backend is interface-only in v0.3.x — see
+[`refract/backends/vllm.py`](backends/vllm.py) for plug-in pointers.
+
+Friend-tester input on Windows is welcome — open an issue with your
+`refract selftest` output.
+
 ## Where do I go?
 
 | If you want to… | Read |
