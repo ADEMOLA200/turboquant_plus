@@ -129,6 +129,35 @@ checkout, you need:
     explicit paths (CI-friendly).
   - The prompts JSONL ships at `refract/prompts/v0.1.jsonl`.
 
+## Constrained VRAM? Pass extra llama.cpp flags
+
+REFRACT defaults to `-ngl 99` (all layers on GPU) for the llama.cpp
+backend. Consumer-card users running large MoE models (e.g.
+Qwen3.6-35B-A3B on a 12 GB 3060) won't fit that — they need
+`-ncmoe N` to offload some MoE expert layers to CPU.
+
+Pass any extra llama.cpp flags via `REFRACT_LLAMA_EXTRA_FLAGS`:
+
+```bash
+# 12 GB consumer GPU running Qwen3.6-35B-A3B with MoE offload
+export REFRACT_LLAMA_EXTRA_FLAGS="-ngl 28 -ncmoe 32"
+python3 -m refract.cli score --backend llamacpp --model /path/to/model.gguf ...
+```
+
+The flags get appended to every `llama-cli`, `llama-completion`, and
+`llama-perplexity` invocation **after** REFRACT's own. llama.cpp uses
+last-wins for repeated flags, so `REFRACT_LLAMA_EXTRA_FLAGS="-ngl 28
+-ncmoe 32"` overrides the default `-ngl 99`. Parsed with `shlex` so
+quoted args work the same as on the command line.
+
+Confirmed working scenarios:
+- Consumer 12 GB GPU + 35B-A3B MoE: `-ngl 28 -ncmoe 32`
+- CPU-only fallback: `-ngl 0`
+- Tensor split across multiple GPUs: `-ts 1,1`
+
+If a flag REFRACT doesn't recognize trips up its own subprocess,
+open an issue with the failing command line and we'll plumb it.
+
 ## Step 2 — preflight (~30 seconds)
 
 ```bash

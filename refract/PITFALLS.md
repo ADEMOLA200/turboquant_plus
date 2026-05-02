@@ -5,6 +5,26 @@ discoverable so first-time users don't repeat the discovery.
 
 ## Setup
 
+### CUDA OOM on consumer GPUs running large MoE models
+
+REFRACT defaults to `-ngl 99` (all layers on GPU). Consumer cards (12
+GB 3060, 16 GB 4060 Ti, etc.) running large MoE models like
+Qwen3.6-35B-A3B will OOM out of the box. The fix is to pass extra
+llama.cpp flags via `REFRACT_LLAMA_EXTRA_FLAGS`:
+
+```bash
+# 12 GB GPU + Qwen3.6-35B-A3B
+export REFRACT_LLAMA_EXTRA_FLAGS="-ngl 28 -ncmoe 32"
+python3 -m refract.cli score --backend llamacpp ...
+```
+
+The env var is appended to every `llama-cli` / `llama-completion` /
+`llama-perplexity` invocation. llama.cpp uses last-wins on repeated
+flags, so `-ngl 28` in `REFRACT_LLAMA_EXTRA_FLAGS` overrides the
+default `-ngl 99`.
+
+Reported by AJ on a 3060 (2026-05-02). Added in v0.3.2.1.
+
 ### Wrong default `--axis-a` in v0.1.x / v0.2.x
 
 The `gtm` axis used `llama-tokenize` to retokenize the candidate's

@@ -32,6 +32,25 @@ DEFAULT_BIN_DIR = Path(
 )
 
 
+def _llama_extra_flags() -> list[str]:
+    """Extra flags appended to every llama-cli / llama-completion /
+    llama-perplexity / llama-tokenize invocation.
+
+    Set via the ``REFRACT_LLAMA_EXTRA_FLAGS`` env var. Useful for users on
+    constrained VRAM running large models (e.g. ``-ncmoe 32`` to offload
+    MoE expert layers to CPU on a 12 GB consumer GPU running Qwen3.6-35B-A3B).
+
+    Parsed with shlex so quoted args work the same as on the command line.
+    Empty / unset returns []. The flags are appended **after** REFRACT's own
+    -ngl / -c / etc., so a user's ``REFRACT_LLAMA_EXTRA_FLAGS="-ngl 28 -ncmoe 32"``
+    will override REFRACT's default ``-ngl 99`` (last wins in llama.cpp).
+    """
+    raw = os.environ.get("REFRACT_LLAMA_EXTRA_FLAGS", "").strip()
+    if not raw:
+        return []
+    return shlex.split(raw)
+
+
 # v0.3.1: backend dispatch. CLI sets this via set_active_backend() based on
 # --backend flag or REFRACT_BACKEND env. When set, the legacy run_completion
 # / run_completion_trajectory functions delegate to the backend so MLX or
@@ -279,6 +298,7 @@ def run_completion(
         if system:
             cmd.extend(["-sys", system])
     cmd.extend(kv.cli_args())
+    cmd.extend(_llama_extra_flags())
 
     env = os.environ.copy()
     env.update(kv.env())
@@ -346,6 +366,7 @@ def run_perplexity_kld_base(
         "--kl-divergence-base", str(base_path),
     ]
     cmd.extend(kv.cli_args())
+    cmd.extend(_llama_extra_flags())
 
     env = os.environ.copy()
     env.update(kv.env())
@@ -394,6 +415,7 @@ def run_perplexity_kld(
         "--kl-divergence-base", str(base_path),
     ]
     cmd.extend(kv.cli_args())
+    cmd.extend(_llama_extra_flags())
 
     env = os.environ.copy()
     env.update(kv.env())
@@ -593,6 +615,7 @@ def run_completion_trajectory(
         if system:
             cmd.extend(["-sys", system])
     cmd.extend(kv.cli_args())
+    cmd.extend(_llama_extra_flags())
 
     env = os.environ.copy()
     env.update(kv.env())

@@ -5,9 +5,20 @@ matrix result that motivated or validated the change.
 
 ---
 
-## v0.3.2.1 — vLLM and SGLang backends production (2026-05-02)
+## v0.3.2.1 — vLLM and SGLang backends production + extra-flags escape hatch (2026-05-02)
 
 ### What changed
+
+- **`REFRACT_LLAMA_EXTRA_FLAGS` env var** — appended to every
+  `llama-cli` / `llama-completion` / `llama-perplexity` subprocess.
+  Lets users on constrained VRAM run REFRACT against large MoE
+  models without forking the runner (e.g.
+  `REFRACT_LLAMA_EXTRA_FLAGS="-ngl 28 -ncmoe 32"` on a 12 GB 3060
+  running Qwen3.6-35B-A3B). llama.cpp's last-wins rule means the
+  user's `-ngl` overrides REFRACT's default `-ngl 99`. Parsed with
+  shlex so quoted args work as on the command line. Reported by
+  AJ on X (2026-05-02).
+
 
 - **vLLM backend rewritten from skeleton to working implementation**
   (`refract/backends/vllm.py`). Cached in-process LLM with
