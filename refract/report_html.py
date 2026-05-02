@@ -290,8 +290,29 @@ def _axis_letter_chip(letter: str) -> str:
     return f'<span class="letter">{_esc(letter)}</span>'
 
 
-def _stat_block(name: str, score: float, *, is_composite: bool = False,
+def _stat_block(name: str, score: Optional[float], *, is_composite: bool = False,
                 low_confidence: bool = False) -> str:
+    # When score is None the axis was skipped (--skip-gtm / --skip-kld).
+    # Render explicit "n/a" instead of a fake 100/EXCELLENT.
+    if score is None and not is_composite:
+        letter = _AXIS_LETTER.get(name, "")
+        short = _AXIS_SHORT.get(name, name)
+        label_html = (
+            f'<div class="label"><span class="axis-letter">{_esc(letter)}</span>'
+            f'{_esc(short)}</div>'
+        )
+        value_html = (
+            f'<div class="value-row">'
+            f'<div class="value" style="color: var(--fg-faint);" '
+            f'title="axis was skipped via --skip-{name} — not measured">n/a</div>'
+            f'</div>'
+        )
+        return (
+            f'<div class="stat skipped">'
+            f'{label_html}{value_html}'
+            f'<div class="badge-row">{_badge("", "Skipped")}</div>'
+            f'</div>'
+        )
     b = band(score)
     cls = "stat composite" if is_composite else "stat"
     if is_composite:
@@ -354,7 +375,21 @@ def _findings(diagnosis: list[str]) -> str:
     return f'<div class="findings">{"".join(items)}</div>'
 
 
-def _axis_row(name: str, score: float, *, low_confidence: bool = False) -> str:
+def _axis_row(name: str, score: Optional[float], *, low_confidence: bool = False) -> str:
+    if score is None:
+        # Skipped axis: explicit n/a row instead of fake 100/EXCELLENT.
+        empty_meter = '<div class="meter-cell"><div class="meter"></div></div>'
+        return (
+            f'<div class="axis-row skipped">'
+            f'<div class="key">{_axis_letter_chip(_AXIS_LETTER.get(name, ""))}'
+            f'{_esc(_AXIS_SHORT.get(name, name))}</div>'
+            f'<div class="name">{_esc(_AXIS_FULL.get(name, name))}'
+            f'<span class="desc">skipped via --skip-{name}; not measured</span></div>'
+            f'<div class="score" style="color: var(--fg-faint);">n/a</div>'
+            f'<div class="badge-cell">{_badge("", "Skipped")}</div>'
+            f'{empty_meter}'
+            f'</div>'
+        )
     b = band(score)
     if low_confidence:
         badge = _badge("", "Low confidence")
@@ -543,7 +578,8 @@ def _kv_pair(label: str, value: str) -> str:
 
 
 def _run_details(model_meta: dict, hw_meta: dict,
-                 reference_label: str, candidate_label: str) -> str:
+                 reference_label: str, candidate_label: str,
+                 env_meta: Optional[dict] = None) -> str:
     # Model card
     model_dl = []
     for k, label in (
@@ -589,10 +625,36 @@ def _run_details(model_meta: dict, hw_meta: dict,
     def _split_kv(spec: str) -> str:
         parts = [p.strip() for p in spec.split(",")]
         return "<br>".join(parts) if parts else spec
-    env_dl = [
+    env_dl = []
+    em = env_meta or {}
+    backend_name = em.get("backend")
+    if backend_name:
+        # Map internal backend name to a friendlier display label.
+        backend_display = {
+            "llamacpp": "llama.cpp",
+            "mlx": "MLX (Apple Silicon)",
+            "vllm": "vLLM",
+            "sglang": "SGLang",
+        }.get(backend_name, backend_name)
+        env_dl.append(_kv_pair("backend", backend_display))
+    # Engine-specific version + commit fields (whichever the active backend
+    # populated). Surfaced because "which engine?" is the first question
+    # readers ask when a report lands in their inbox.
+    for key, label in (
+        ("llama_cpp_commit", "llama.cpp commit"),
+        ("llama_cpp_version", "llama.cpp version"),
+        ("mlx_lm_version", "mlx-lm version"),
+        ("mlx_version", "mlx version"),
+        ("vllm_version", "vLLM version"),
+        ("sglang_url", "SGLang URL"),
+        ("served_model_id", "served model"),
+    ):
+        if em.get(key):
+            env_dl.append(_kv_pair(label, em[key]))
+    env_dl.extend([
         f"<dt>reference</dt><dd>{_split_kv(_esc(reference_label))}</dd>",
         f"<dt>candidate</dt><dd>{_split_kv(_esc(candidate_label))}</dd>",
-    ]
+    ])
 
     return (
         f'<div class="run-grid">'
@@ -1161,7 +1223,8 @@ def html_report(
       <h2>Run details</h2>
       <span class="hint">model · hardware · environment</span>
     </div>
-    {_run_details(model_meta, hw_meta, reference_label, candidate_label)}
+    {_run_details(model_meta, hw_meta, reference_label, candidate_label,
+                  env_meta=(raw_json or {}).get("environment"))}
   </section>
 
   <section class="section">

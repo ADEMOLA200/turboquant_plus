@@ -504,8 +504,13 @@ def _run_score(args) -> int:
         print(f"  PLAD score: {plad.score:.2f}")
 
     # ---- Composite --------------------------------------------------------
+    # Skipped axes contribute None to the composite (dropped before the
+    # harmonic mean) rather than a stub 100, which would inflate the
+    # composite and read as EXCELLENT in the report.
+    gtm_for_composite = None if args.skip_gtm else gtm.score
+    kld_for_composite = None if args.skip_kld else kld.score
     composite = composite_score(
-        gtm.score, kld.score,
+        gtm_for_composite, kld_for_composite,
         rniah_score=rniah.score if rniah else None,
         plad_score=plad.score if plad else None,
         floor_score=floor_score,

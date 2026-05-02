@@ -53,8 +53,8 @@ def band(score: float) -> str:
 
 def interpret_pattern(
     *,
-    gtm_score: float,
-    kld_score: float,
+    gtm_score: Optional[float],
+    kld_score: Optional[float],
     rniah_score: Optional[float] = None,
     plad_score: Optional[float] = None,
 ) -> list[str]:
@@ -153,8 +153,8 @@ class CompositeScore:
 
     composite: float                 # 0–100 (harmonic_mean of scored axes)
     band: str                        # EXCELLENT / PASS / DEGRADED / FAIL
-    gtm_score: float                 # 0–100 (axis A: gtm or trajectory)
-    kld_score: float                 # 0–100 (axis B)
+    gtm_score: Optional[float]       # 0–100 (axis A); None if --skip-gtm
+    kld_score: Optional[float]       # 0–100 (axis B); None if --skip-kld
     rniah_score: Optional[float] = None  # 0–100 (axis C; v0.2)
     plad_score: Optional[float] = None   # 0–100 (axis D; v0.2)
     floor_score: Optional[float] = None  # measured floor (ref vs ref)
@@ -164,8 +164,8 @@ class CompositeScore:
 
 
 def composite_score(
-    gtm_score: float,
-    kld_score: float,
+    gtm_score: Optional[float],
+    kld_score: Optional[float],
     rniah_score: Optional[float] = None,
     plad_score: Optional[float] = None,
     floor_score: Optional[float] = None,
@@ -175,14 +175,20 @@ def composite_score(
     Axes that weren't run (passed as ``None``) are dropped before
     aggregation. v0.1 callers passing only gtm + kld get a 2-axis
     harmonic mean (unchanged behaviour); v0.2 callers passing all four
-    get a 4-axis harmonic mean.
+    get a 4-axis harmonic mean. v0.3.2.1+: gtm and kld are also
+    Optional so that ``--skip-gtm`` / ``--skip-kld`` exclude their axis
+    from the composite rather than feeding a stub 100.
     """
-    axes = [gtm_score, kld_score]
+    axes: list[float] = []
+    if gtm_score is not None:
+        axes.append(gtm_score)
+    if kld_score is not None:
+        axes.append(kld_score)
     if rniah_score is not None:
         axes.append(rniah_score)
     if plad_score is not None:
         axes.append(plad_score)
-    composite = harmonic_mean(axes)
+    composite = harmonic_mean(axes) if axes else 0.0
     floor_ok: Optional[bool] = None
     notes: list[str] = []
     if floor_score is not None:

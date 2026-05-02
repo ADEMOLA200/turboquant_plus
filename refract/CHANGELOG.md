@@ -5,9 +5,30 @@ matrix result that motivated or validated the change.
 
 ---
 
-## v0.3.2.1 — vLLM and SGLang backends production + extra-flags escape hatch (2026-05-02)
+## v0.3.2.1 — vLLM and SGLang backends production + extra-flags escape hatch + skip-axis fix (2026-05-02)
 
 ### What changed
+
+- **Engine name + version surfaced in HTML report.** The `Run details →
+  Environment` card now shows `backend` (one of llama.cpp / MLX / vLLM /
+  SGLang) plus engine-specific version fields (llama.cpp commit, mlx-lm
+  version, vLLM version, SGLang URL, served model id) when the active
+  backend populates them. Previously a report didn't say which engine
+  ran it, which made cross-engine comparison reports ambiguous in the
+  inbox.
+
+- **`--skip-gtm` / `--skip-kld` no longer inflate the composite to 100.**
+  Previously the CLI fed a stub `score=100.0` to `composite_score`,
+  which made a single real KLD axis of 99.47 produce a misleading
+  composite of 99.74 EXCELLENT. The skipped axis now contributes
+  `None` to `composite_score()` and is excluded from the harmonic
+  mean; report renderers (text + HTML) display "n/a (skipped)"
+  instead of "100 EXCELLENT" for the skipped axis. The harmonic-mean
+  axis count in the text report ("harmonic mean of N axes") now
+  reflects the real number, not 2-or-more. Reported by AJ on X
+  (2026-05-02). Regression tests added in `test_score.py`.
+
+
 
 - **`REFRACT_LLAMA_EXTRA_FLAGS` env var** — appended to every
   `llama-cli` / `llama-completion` / `llama-perplexity` subprocess.

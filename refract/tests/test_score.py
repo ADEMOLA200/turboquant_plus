@@ -176,3 +176,85 @@ def test_interpret_two_axis_call_omits_optional():
 
 def test_min_floor_is_99_5():
     assert MIN_FLOOR == 99.5
+
+
+# --- skip-axis composite: regression for false-100 reporting -------------
+
+
+def test_composite_skip_gtm_not_inflated_to_100():
+    """v0.3.2.1: --skip-gtm passes gtm_score=None to composite_score, which
+    must drop it from the harmonic mean rather than treat it as a 100 stub.
+
+    Regression: AJ reported (2026-05-02) that --skip-gtm produced a 99.74
+    EXCELLENT composite from a single real KLD score of 99.47, because
+    the previous wiring fed a stub gtm=100."""
+    cs = composite_score(gtm_score=None, kld_score=99.47)
+    assert abs(cs.composite - 99.47) < 0.01
+    assert cs.gtm_score is None
+    assert cs.kld_score == 99.47
+
+
+def test_composite_skip_kld_not_inflated_to_100():
+    cs = composite_score(gtm_score=62.40, kld_score=None)
+    assert abs(cs.composite - 62.40) < 0.01
+    assert cs.gtm_score == 62.40
+    assert cs.kld_score is None
+
+
+def test_composite_skip_both_returns_zero():
+    """If both A and B are skipped and no rniah/plad, don't crash and
+    don't claim 100. Return 0 with FAIL band."""
+    cs = composite_score(gtm_score=None, kld_score=None)
+    assert cs.composite == 0.0
+    assert cs.band == "FAIL"
+
+
+def test_composite_skip_gtm_with_rniah_plad():
+    """Skip-gtm + KLD + R-NIAH + PLAD = harmonic mean of 3 axes only."""
+    cs = composite_score(
+        gtm_score=None, kld_score=99.0, rniah_score=100.0, plad_score=90.0,
+    )
+    expected = 3 / (1/99 + 1/100 + 1/90)
+    assert abs(cs.composite - expected) < 0.01
+
+
+def test_interpret_pattern_handles_skipped_gtm():
+    """interpret_pattern shouldn't blow up on None gtm/kld."""
+    notes = interpret_pattern(
+        gtm_score=None, kld_score=99.0, rniah_score=100.0, plad_score=95.0,
+    )
+    assert isinstance(notes, list)
+
+
+def test_text_report_skip_gtm_renders_n_a_and_one_axis_count():
+    """text_report on a skipped axis emits 'n/a' / 'skipped' (not 100/EXCELLENT)
+    and counts the harmonic-mean axes correctly."""
+    from refract.axes.gtm import GTMResult
+    from refract.axes.kld import KLDResult
+    from refract.report import text_report
+    gtm_stub = GTMResult(
+        score=100.0, full_match_rate=1.0,
+        median_first_divergence=None,
+        mean_prefix_agreement_length=0.0,
+        mean_cand_length=0.0, mean_ref_length=0.0,
+        n_prompts=0, n_tokens_each=0, per_prompt=[],
+    )
+    kld_real = KLDResult(
+        score=99.47, mean_kld=0.0053, ppl=None,
+        rms_dp_pct=None, same_topp_pct=None,
+        base_path="", chunks=32, ctx=512,
+        is_self_reference=False,
+    )
+    cs = composite_score(gtm_score=None, kld_score=99.47)
+    out = text_report(
+        model="m.gguf",
+        reference_label="ctk=f16,ctv=f16",
+        candidate_label="ctk=q8_0,ctv=q8_0",
+        composite=cs, gtm=gtm_stub, kld=kld_real,
+    )
+    import re as _re
+    plain = _re.sub(r"\x1b\[[0-9;]*m", "", out)
+    assert "n/a" in plain or "skipped" in plain.lower()
+    assert "99.47" in plain
+    # gloss must reflect actual axis count after skip, not the old hardcoded 2
+    assert "harmonic mean of 1 axes" in plain

@@ -87,8 +87,21 @@ def _axis_label(name: str) -> str:
     }.get(name, name)
 
 
-def _axis_line(name: str, score: float, bar_width: int = 40) -> str:
-    """One report line per axis: label, score, bar, band, prose."""
+def _axis_line(name: str, score: Optional[float], bar_width: int = 40) -> str:
+    """One report line per axis: label, score, bar, band, prose.
+
+    When ``score is None`` the axis was skipped via ``--skip-gtm`` /
+    ``--skip-kld``; render it explicitly as ``n/a`` so a reader doesn't
+    interpret a missing axis as a perfect 100.
+    """
+    if score is None:
+        empty_bar = " " * bar_width
+        skipped = _c("33", "skipped ")
+        return (
+            f" {_axis_label(name)}:    n/a  "
+            f"{empty_bar}  {skipped}  "
+            f"{_AXIS_PROSE.get(name, '')}"
+        )
     b = band(score)
     band_str = _c(_band_color(b), f"{b:<9}")
     return (
@@ -152,9 +165,14 @@ def text_report(
     # Composite
     band_str = _c(_band_color(composite.band), composite.band)
     # Count axes that contributed to the harmonic mean so the gloss is honest
-    # about what produced the number (2 axes for cheap mode, up to 4 for full).
-    n_axes = 2 + (1 if composite.rniah_score is not None else 0) \
-               + (1 if composite.plad_score is not None else 0)
+    # about what produced the number. Skipped axes (--skip-gtm / --skip-kld)
+    # contribute None to composite_score and are excluded here too.
+    n_axes = (
+        (1 if composite.gtm_score is not None else 0)
+        + (1 if composite.kld_score is not None else 0)
+        + (1 if composite.rniah_score is not None else 0)
+        + (1 if composite.plad_score is not None else 0)
+    )
     lines.append(
         _c("1", f" REFRACT score    : {composite.composite:6.2f}  "
                 f"{_bar(composite.composite, bar_width)}  {band_str}")
@@ -195,39 +213,50 @@ def text_report(
                 lines.append(chunk)
         lines.append("-" * 72)
 
-    # GTM diagnostics
-    lines.append(" GTM diagnostics")
-    lines.append(f"   prompts                    : {gtm.n_prompts}")
-    lines.append(f"   tokens decoded each        : {gtm.n_tokens_each}")
-    lines.append(f"   full match rate            : {gtm.full_match_rate*100:5.1f} %")
-    if gtm.median_first_divergence is not None:
+    # GTM / Trajectory diagnostics — suppress if axis was skipped, since
+    # the diagnostic block on a stub result reads as "0 prompts, all matched"
+    # which is misleading.
+    if composite.gtm_score is not None:
+        lines.append(" GTM diagnostics")
+        lines.append(f"   prompts                    : {gtm.n_prompts}")
+        lines.append(f"   tokens decoded each        : {gtm.n_tokens_each}")
+        lines.append(f"   full match rate            : {gtm.full_match_rate*100:5.1f} %")
+        if gtm.median_first_divergence is not None:
+            lines.append(
+                f"   median first divergence    : token {gtm.median_first_divergence}"
+            )
+        else:
+            lines.append("   median first divergence    : (all matched)")
         lines.append(
-            f"   median first divergence    : token {gtm.median_first_divergence}"
+            f"   mean prefix agreement      : {gtm.mean_prefix_agreement_length:5.1f} tokens"
         )
+        lines.append(
+            f"   mean cand / ref length     : {gtm.mean_cand_length:5.1f} / "
+            f"{gtm.mean_ref_length:5.1f} tokens"
+        )
+        if gtm.notes:
+            for n in gtm.notes:
+                lines.append(_c("33", f"   NOTE: {n}"))
     else:
-        lines.append("   median first divergence    : (all matched)")
-    lines.append(
-        f"   mean prefix agreement      : {gtm.mean_prefix_agreement_length:5.1f} tokens"
-    )
-    lines.append(
-        f"   mean cand / ref length     : {gtm.mean_cand_length:5.1f} / "
-        f"{gtm.mean_ref_length:5.1f} tokens"
-    )
-    if gtm.notes:
-        for n in gtm.notes:
-            lines.append(_c("33", f"   NOTE: {n}"))
+        lines.append(_c("33",
+            " GTM/Trajectory: SKIPPED via --skip-gtm; not measured."))
 
     # KLD diagnostics
-    lines.append("")
-    lines.append(" KLD diagnostics")
-    lines.append(f"   chunks x ctx               : {kld.chunks} x {kld.ctx}")
-    lines.append(f"   mean KLD (nats)            : {kld.mean_kld:.6f}")
-    if kld.ppl is not None:
-        lines.append(f"   candidate PPL              : {kld.ppl:.4f}")
-    if kld.rms_dp_pct is not None:
-        lines.append(f"   RMS Δp (vs reference)      : {kld.rms_dp_pct:.2f} %")
-    if kld.same_topp_pct is not None:
-        lines.append(f"   same top-p (vs reference)  : {kld.same_topp_pct:.2f} %")
+    if composite.kld_score is not None:
+        lines.append("")
+        lines.append(" KLD diagnostics")
+        lines.append(f"   chunks x ctx               : {kld.chunks} x {kld.ctx}")
+        lines.append(f"   mean KLD (nats)            : {kld.mean_kld:.6f}")
+        if kld.ppl is not None:
+            lines.append(f"   candidate PPL              : {kld.ppl:.4f}")
+        if kld.rms_dp_pct is not None:
+            lines.append(f"   RMS Δp (vs reference)      : {kld.rms_dp_pct:.2f} %")
+        if kld.same_topp_pct is not None:
+            lines.append(f"   same top-p (vs reference)  : {kld.same_topp_pct:.2f} %")
+    else:
+        lines.append("")
+        lines.append(_c("33",
+            " KLD: SKIPPED via --skip-kld; not measured."))
 
     # R-NIAH diagnostics
     if rniah is not None:
@@ -307,15 +336,19 @@ def json_report(
     # `composite_detail` for diagnostics.
     composite_scalar = composite_dict.pop("composite")
     composite_band = composite_dict.pop("band")
+    def _band_or_skipped(s):
+        return band(s) if s is not None else "skipped"
     axes_block: dict = {
         "gtm": {
             **gtm_dict,
-            "band": band(composite.gtm_score),
+            "band": _band_or_skipped(composite.gtm_score),
+            "skipped": composite.gtm_score is None,
             "description": _AXIS_PROSE["gtm"],
         },
         "kld": {
             **asdict(kld),
-            "band": band(composite.kld_score),
+            "band": _band_or_skipped(composite.kld_score),
+            "skipped": composite.kld_score is None,
             "description": _AXIS_PROSE["kld"],
         },
     }
