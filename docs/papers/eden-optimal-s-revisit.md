@@ -377,6 +377,40 @@ Thanks to Vargaftik, Ben-Basat, Portnoy, Mendelson, Ben-Itzhak, and Mitzenmacher
 
 ---
 
+## Appendix A: DRIVE Algorithm 1 head-to-head at b=1
+
+To pin down which S formulas are derived in the DRIVE paper versus optimized by matched-norm, this appendix runs the three explicit S forms at the exact regime DRIVE Algorithm 1 specifies (1-bit sign quantization).
+
+**Setup.** Synthetic standard-normal source X ∈ ℝ^{N×d}, N=50,000, d=128. Random fast Hadamard rotation R applied per the DRIVE construction. Codebook c = sign(R(x)) ∈ {-1, +1}^d, so ‖c‖ = √d and ⟨c, R(x)⟩ = ‖R(x)‖₁. Three S forms compared head-to-head:
+
+- **Lemma 1 (biased, SSE-minimizing):** S = ‖R(x)‖₁ / d
+- **Theorem 3 (unbiased under uniform rotation):** S = ‖x‖² / ‖R(x)‖₁
+- **Matched-norm:** S = ‖x‖ / √d
+
+Reconstruction in all cases: x̂ = R⁻¹(S · c).
+
+**Results.**
+
+| S form | MSE/d | E[⟨x̂,x⟩/‖x‖²] | mean ‖x̂-x‖/‖x‖ norm error |
+|---|---|---|---|
+| Lemma 1 biased: ‖R(x)‖₁/d | 0.361 | 0.640 | 0.201 |
+| Theorem 3 unbiased: ‖x‖²/‖R(x)‖₁ | 0.567 | 1.000 (exact) | 0.252 |
+| Matched-norm: ‖x‖/√d | 0.401 | 0.799 | 1.4e-16 (exact) |
+
+**Interpretation.** Each S form attains the optimum of its own objective and only its own. Lemma 1 minimizes mean squared error. Theorem 3 produces an unbiased inner-product estimator (E[⟨x̂,x⟩] = ‖x‖²) at a 57% MSE penalty relative to Lemma 1. Matched-norm produces exact vector-norm preservation (‖x̂‖ = ‖x‖) at an 11% MSE penalty relative to Lemma 1 and a 30% MSE improvement over Theorem 3.
+
+The norm-preservation objective minimized by matched-norm is not derived in DRIVE Algorithm 1, Lemma 1, Theorem 3, or Appendix A.4 of the DRIVE paper. The three S forms the paper derives optimize MSE (Lemma 1), inner-product bias (Theorem 3), or use a deterministic constant (Appendix A.4). Matched-norm coincides with the Lemma 1 SSE-minimum only under the degenerate condition ‖R(x)‖₁ = √d · ‖x‖₂ (all rotated coordinates equal in magnitude), which holds with probability zero under a uniform rotation.
+
+**Algebraic relation between EDEN scales.** The biased and unbiased scales admit the identity
+
+$$\sqrt{S_{\text{unb}} \cdot S_{\text{bias}}} = \sqrt{\frac{\|x\|^2}{\langle x,c \rangle} \cdot \frac{\langle x,c \rangle}{\|c\|^2}} = \frac{\|x\|_2}{\|c\|_2}$$
+
+which coincides with the matched-norm scale. This provides an algebraic interpolation between the two EDEN-derived forms. The relationship is not derived in DRIVE, EDEN (ICML 2022), or the TurboQuant/EDEN note paper (arXiv:2604.18555), and does not correspond to an optimization objective considered in those works. Empirically, matched-norm behaves as a distinct operating point rather than a tuning of either scale, as the head-to-head numbers above show: each form attains the optimum of its own objective and only its own.
+
+**Reproducibility.** Script: [`h37_drive_algo1_b1.py`](../../scripts/eden-investigation/h37_drive_algo1_b1.py). Deterministic under `np.random.seed(42)`. Runs in under 30 seconds on CPU.
+
+---
+
 ## References
 
 - TurboQuant paper (Google Research / NYU, ICLR 2026): [arXiv:2504.19874](https://arxiv.org/abs/2504.19874)
