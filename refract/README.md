@@ -10,13 +10,30 @@
 
 ## Install
 
+### From PyPI (recommended)
+
 ```bash
-pip install -e .                    # REFRACT alpha — zero non-stdlib deps
-pip install -e .[refract-mlx]       # add the MLX backend (Apple Silicon)
-pip install -e .[refract-vllm]      # add the vLLM backend (CUDA / ROCm)
-pip install -e .[refract-sglang]    # add the SGLang backend (HTTP client + tokenizer)
-pip install -e .[turboquant]        # add the TurboQuant Python implementation
-pip install -e .[dev]               # pytest + coverage
+pip install refract-llm                       # base — zero non-stdlib deps
+pip install refract-llm[refract-mlx]          # + MLX backend (Apple Silicon)
+pip install refract-llm[refract-vllm]         # + vLLM backend (CUDA / ROCm)
+pip install refract-llm[refract-sglang]       # + SGLang HTTP client backend
+pip install refract-llm[full]                 # + all three backends
+```
+
+After install: the `refract` CLI is on your PATH, the prompts JSON, the
+example reports, and the llama.cpp trajectory patch all ship inside the
+wheel and are accessible via `importlib.resources` if you need them.
+
+### From source (for hacking / contributing)
+
+```bash
+git clone https://github.com/TheTom/turboquant_plus.git
+cd turboquant_plus
+pip install -e .                              # editable install, base
+pip install -e .[refract-mlx]                 # editable + MLX backend
+pip install -e .[refract-vllm]                # editable + vLLM backend
+pip install -e .[refract-sglang]              # editable + SGLang backend
+pip install -e .[dev]                         # editable + pytest + coverage + build tooling
 ```
 
 The base install gives you the `refract` CLI with no third-party

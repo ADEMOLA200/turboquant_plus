@@ -5,6 +5,25 @@ matrix result that motivated or validated the change.
 
 ---
 
+## v0.3.2.2 — `--prompts` defaults to bundled (2026-05-03)
+
+### What changed
+
+- `refract score --prompts ...` is no longer required. Defaults to the
+  `refract/prompts/v0.1.jsonl` shipped inside the wheel (resolved via
+  `importlib.resources`). After `pip install refract-llm`, the minimum
+  viable `refract score` invocation is now:
+
+  ```
+  refract score --backend mlx --model /path/to/model --candidate ctk=q8_0,ctv=q8_0
+  ```
+
+  The reference still defaults to `ctk=f16,ctv=f16`. The corpus auto-
+  downloads from wikitext-2-raw if not pinned. Confirmed monkey-proof
+  on the Mac mini install walkthrough (2026-05-03).
+
+---
+
 ## v0.3.2.1 — vLLM and SGLang backends production + extra-flags escape hatch + skip-axis fix (2026-05-02)
 
 ### What changed

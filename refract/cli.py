@@ -202,8 +202,10 @@ def _add_score_parser(sub):
                    help="Reference KV config (default: ctk=f16,ctv=f16).")
     p.add_argument("--candidate", required=True,
                    help="Candidate KV config to score.")
-    p.add_argument("--prompts", required=True, type=Path,
-                   help="Path to JSONL prompts file (e.g. prompts/v0.1.jsonl).")
+    p.add_argument("--prompts", type=Path, default=None,
+                   help="Path to JSONL prompts file. If omitted, REFRACT uses "
+                        "the bundled refract/prompts/v0.1.jsonl shipped in the "
+                        "wheel (30 CC0 prompts; see prompts/README.md).")
     p.add_argument("--corpus", type=Path, default=None,
                    help="Path to plain-text corpus for KLD axis. "
                         "If omitted, REFRACT auto-downloads wikitext-2-raw "
@@ -297,6 +299,22 @@ def _run_score(args) -> int:
     from . import __version__
     from .backends import auto_backend, get_backend
     from .runner import set_active_backend
+
+    # If --prompts wasn't passed, fall back to the bundled prompts file
+    # shipped inside the wheel via package_data.
+    if args.prompts is None:
+        try:
+            import importlib.resources
+            args.prompts = Path(
+                str(importlib.resources.files("refract").joinpath(
+                    "prompts/v0.1.jsonl"))
+            )
+        except Exception as e:
+            print(
+                f"ERROR: --prompts not given and bundled prompts not found "
+                f"({e}). Pass --prompts /path/to/prompts.jsonl explicitly."
+            )
+            return 2
 
     ref_kv = KVConfig.parse(args.reference)
     cand_kv = KVConfig.parse(args.candidate)
