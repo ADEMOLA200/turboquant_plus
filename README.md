@@ -23,7 +23,6 @@ This repository is the **research home**: the Python reference implementation, t
 | [turboquant-pytorch](https://github.com/tonbistudio/turboquant-pytorch) | PyTorch | Independent implementation | From-scratch PyTorch TurboQuant for KV cache; applies this repo's layer-adaptive compression and Sparse V findings |
 | [turboquant-vllm](https://github.com/varjoranta/turboquant-vllm) | CUDA, vLLM package | Community package | TQ+ KV cache for vLLM with fused CUDA kernels; builds on this repo's block_size=128 and K-dominance research |
 | [Quansloth](https://github.com/PacifAIst/Quansloth) | Local server product | Community product | Air-gapped local AI server built on the TurboQuant+ stack |
-| [RotorQuant](https://github.com/scrya-com/rotorquant) | llama.cpp | Comparison codec | Block-diagonal rotation alternative; ships `turbo3`/`turbo4` alongside its own formats for side-by-side comparison |
 
 ## Key Findings
 
